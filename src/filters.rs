@@ -19,14 +19,14 @@ enum VerticalDirection {
 }
 
 pub struct Filter {
-   kernal_size: i32,  
+   kernal_size: (i32, i32),  
    stride: i32,
    padding: Padding,
    weights: Vec<Vec<f32>>
 } 
 
 impl Filter {
-    pub fn new(kernal_size: i32, stride: i32, padding: Padding) -> Self {
+    pub fn new(kernal_size: (i32, i32), stride: i32, padding: Padding) -> Self {
         let weights = Filter::initialize_weights(kernal_size) ;
         return Self {
             weights,
@@ -36,16 +36,16 @@ impl Filter {
         }
     }
 
-    fn initialize_weights(kernal_size: i32) -> Vec<Vec<f32>> {
+    fn initialize_weights(kernal_size: (i32, i32)) -> Vec<Vec<f32>> {
         let mut rng = rand::rng();
-        let weights = (0..kernal_size).map(|_| (0..kernal_size).map(|_| rng.random::<f32>()).collect()).collect();   
+        let weights = (0..kernal_size.0).map(|_| (0..kernal_size.1).map(|_| rng.random::<f32>()).collect()).collect();   
         return weights;
     }
 
 
-    fn compute_convolution(&self, matrix: &Vec<Vec<f32>>, i: i32, j: i32) -> f32 {
+    fn compute_convolution(&self, matrix: &Vec<Vec<f32>>, m_i: i32, v_i: i32) -> f32 {
          let weights_len = (self.weights.len() + self.weights.get(0).unwrap().len()) as f32; 
-         let matrix_slice = self.matrix_slice(matrix, i, j);
+         let matrix_slice = self.matrix_slice(matrix, m_i, v_i);
          let sum: f32 = zip(matrix_slice, self.weights.iter()).fold(0.0, |sum_m, (v1, v2)| 
               sum_m + zip(v1, v2).fold(0.0, |sum_v,  (c1, c2)| sum_v + (c1 * c2)));
          return sum/weights_len;
@@ -86,11 +86,11 @@ impl Filter {
          }   
     }
 
-    fn matrix_slice(&self, matrix: &Vec<Vec<f32>>, i: i32, j: i32) -> VecDeque<VecDeque<f32>> {
-        let vertical_min = i - (self.kernal_size/2);
-        let vertical_max = i  + (self.kernal_size/2);
-        let horizontal_min = j - (self.kernal_size/2);
-        let horizontal_max = j  + (self.kernal_size/2);
+    fn matrix_slice(&self, matrix: &Vec<Vec<f32>>, m_i: i32, v_i: i32) -> VecDeque<VecDeque<f32>> {
+        let vertical_min = m_i - (self.kernal_size.0/2);
+        let vertical_max = m_i  + (self.kernal_size.0/2);
+        let horizontal_min = v_i - (self.kernal_size.1/2);
+        let horizontal_max = v_i  + (self.kernal_size.1/2);
         let mut matrix_slice = VecDeque::new();
         for k in (vertical_min.max(0)..vertical_max.min(matrix.len() as i32 - 1) + 1) {
             let vector = matrix.get(k as usize).unwrap();
@@ -110,27 +110,27 @@ impl Filter {
         } 
         if vertical_min < 0 {
             let underflow = - vertical_min; 
-            self.add_vertical_padding(&mut matrix_slice, VerticalDirection::Top, underflow, self.kernal_size);
+            self.add_vertical_padding(&mut matrix_slice, VerticalDirection::Top, underflow, self.kernal_size.1);
         }
         if vertical_max > matrix.len() as i32 - 1 {
             let overflow = vertical_max - matrix.len() as i32 - 1; 
-            self.add_vertical_padding(&mut matrix_slice, VerticalDirection::Bottom, overflow, self.kernal_size);
+            self.add_vertical_padding(&mut matrix_slice, VerticalDirection::Bottom, overflow, self.kernal_size.1);
         }
         return matrix_slice;
    }   
 
     pub fn apply_filter(&self, matrix: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         let mut result_matrix = Vec::new();
-        for i in (0..matrix.len()) {
-             if i as i32 % self.stride != 0 {
+        for m_i in (0..matrix.len()) {
+             if m_i as i32 % self.stride != 0 {
                  continue;
              }
              let mut vector = Vec::new();
-             for j in (0..matrix.get(i).unwrap().len())  {
-                if j as i32 % self.stride != 0 {
+             for v_i in (0..matrix.get(m_i).unwrap().len())  {
+                if v_i as i32 % self.stride != 0 {
                    continue;
                 }
-                let convolution = self.compute_convolution(matrix, i as i32, j as i32);
+                let convolution = self.compute_convolution(matrix, m_i as i32, v_i as i32);
                 vector.push(convolution);
              } 
              result_matrix.push(vector);
@@ -145,26 +145,23 @@ mod tests {
     use super::*;
     #[test]
     fn test_filter_initialization() {
-         let kernal_size = 3 ;
+         let kernal_size = (3, 3);
          let stride = 1;
          let padding = Padding::Ones; 
          let filter = Filter::new(kernal_size, stride, padding); 
          assert!(filter.kernal_size == kernal_size);
          assert!(matches!(filter.padding, Padding::Ones));
          assert!(filter.stride == 1);
-         assert!(filter.weights.len() as i32 == kernal_size);
-         assert!(filter.weights.iter().all(|v| v.len() as i32 == kernal_size));
+         assert!(filter.weights.len() as i32 == kernal_size.0);
+         assert!(filter.weights.iter().all(|v| v.len() as i32 == kernal_size.1));
          assert!(filter.weights.iter().all(|v| v.iter().all(|c| *c <= 1.0 && *c > 0.0)));
     } 
     #[test]
     fn test_apply_filter() {
-         let kernal_size = 5;
+         let kernal_size = (5, 5);
          let stride = 3;
          let padding = Padding::Ones; 
-         let filter = Filter::new(kernal_size, stride, padding); 
-         let matrix: Vec<Vec<f32>> = vec![vec![1.0, 2.0, 3.0, 4.0], vec![1.0, 3.0, 5.0, 6.0], vec![3.0, 9.0, 4.0, 2.0]];
-         println!("{:?}", filter.apply_filter(&matrix));
-
+         let mut filter = Filter::new(kernal_size, stride, padding); 
     } 
 }
 
