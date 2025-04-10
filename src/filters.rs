@@ -1,6 +1,6 @@
-use crate::matrices::dot_matrices; 
 use rand::Rng;
 use std::collections::VecDeque;
+use std::iter::zip;
 
 enum Padding {
    Zero,
@@ -40,6 +40,15 @@ impl Filter {
         let mut rng = rand::rng();
         let weights = (0..kernal_size).map(|_| (0..kernal_size).map(|_| rng.random::<f32>()).collect()).collect();   
         return weights;
+    }
+
+
+    fn compute_convolution(&self, matrix: &Vec<Vec<f32>>, i: i32, j: i32) -> f32 {
+         let weights_len = (self.weights.len() + self.weights.get(0).unwrap().len()) as f32; 
+         let matrix_slice = self.matrix_slice(matrix, i, j);
+         let sum: f32 = zip(matrix_slice, self.weights.iter()).fold(0.0, |sum_m, (v1, v2)| 
+              sum_m + zip(v1, v2).fold(0.0, |sum_v,  (c1, c2)| sum_v + (c1 * c2)));
+         return sum/weights_len;
     }
 
 
@@ -110,20 +119,23 @@ impl Filter {
         return matrix_slice;
    }   
 
-    pub fn apply_filter(&self, matrix: &Vec<Vec<f32>>) {
-        let mut matrix = matrix.clone();
+    pub fn apply_filter(&self, matrix: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+        let mut result_matrix = Vec::new();
         for i in (0..matrix.len()) {
              if i as i32 % self.stride != 0 {
                  continue;
              }
+             let mut vector = Vec::new();
              for j in (0..matrix.get(i).unwrap().len())  {
                 if j as i32 % self.stride != 0 {
                    continue;
                 }
-                let matrix_slice = self.matrix_slice(&matrix, i as i32, j as i32);
-
+                let convolution = self.compute_convolution(matrix, i as i32, j as i32);
+                vector.push(convolution);
              } 
-    }
+             result_matrix.push(vector);
+        }
+        return result_matrix;
 }
 
 }
@@ -146,8 +158,8 @@ mod tests {
     } 
     #[test]
     fn test_apply_filter() {
-         let kernal_size = 10;
-         let stride = 1;
+         let kernal_size = 5;
+         let stride = 3;
          let padding = Padding::Ones; 
          let filter = Filter::new(kernal_size, stride, padding); 
          let matrix: Vec<Vec<f32>> = vec![vec![1.0, 2.0, 3.0, 4.0], vec![1.0, 3.0, 5.0, 6.0], vec![3.0, 9.0, 4.0, 2.0]];
