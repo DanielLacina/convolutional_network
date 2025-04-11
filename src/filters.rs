@@ -20,13 +20,13 @@ enum VerticalDirection {
 
 pub struct Filter {
    kernal_size: (i32, i32),  
-   stride: i32,
+   stride: (i32, i32),
    padding: Padding,
    weights: Vec<Vec<f32>>
 } 
 
 impl Filter {
-    pub fn new(kernal_size: (i32, i32), stride: i32, padding: Padding) -> Self {
+    pub fn new(kernal_size: (i32, i32), stride: (i32, i32), padding: Padding) -> Self {
         let weights = Filter::initialize_weights(kernal_size) ;
         return Self {
             weights,
@@ -122,12 +122,12 @@ impl Filter {
     pub fn apply_filter(&self, matrix: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         let mut result_matrix = Vec::new();
         for m_i in (0..matrix.len()) {
-             if m_i as i32 % self.stride != 0 {
+             if m_i as i32 % self.stride.0 != 0 {
                  continue;
              }
              let mut vector = Vec::new();
              for v_i in (0..matrix.get(m_i).unwrap().len())  {
-                if v_i as i32 % self.stride != 0 {
+                if v_i as i32 % self.stride.1 != 0 {
                    continue;
                 }
                 let convolution = self.compute_convolution(matrix, m_i as i32, v_i as i32);
@@ -146,22 +146,15 @@ mod tests {
     #[test]
     fn test_filter_initialization() {
          let kernal_size = (3, 3);
-         let stride = 1;
+         let stride = (1, 1);
          let padding = Padding::Ones; 
          let filter = Filter::new(kernal_size, stride, padding); 
          assert!(filter.kernal_size == kernal_size);
          assert!(matches!(filter.padding, Padding::Ones));
-         assert!(filter.stride == 1);
+         assert!(filter.stride == (1, 1));
          assert!(filter.weights.len() as i32 == kernal_size.0);
          assert!(filter.weights.iter().all(|v| v.len() as i32 == kernal_size.1));
          assert!(filter.weights.iter().all(|v| v.iter().all(|c| *c <= 1.0 && *c > 0.0)));
-    } 
-    #[test]
-    fn test_apply_filter() {
-         let kernal_size = (5, 5);
-         let stride = 3;
-         let padding = Padding::Ones; 
-         let mut filter = Filter::new(kernal_size, stride, padding); 
     } 
 }
 
