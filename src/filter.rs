@@ -2,7 +2,8 @@ use rand::Rng;
 use std::collections::VecDeque;
 use std::iter::zip;
 
-enum Padding {
+#[derive(Clone)]
+pub enum Padding {
    Zero,
    Ones, 
    Reflective,
@@ -120,7 +121,7 @@ impl Filter {
    }   
 
     pub fn apply_filter(&self, matrix: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
-        let mut result_matrix = Vec::new();
+        let mut output_matrix = Vec::new();
         for m_i in (0..matrix.len()) {
              if m_i as i32 % self.stride.0 != 0 {
                  continue;
@@ -133,9 +134,9 @@ impl Filter {
                 let convolution = self.compute_convolution(matrix, m_i as i32, v_i as i32);
                 vector.push(convolution);
              } 
-             result_matrix.push(vector);
+             output_matrix.push(vector);
         }
-        return result_matrix;
+        return output_matrix;
 }
 
 }
@@ -156,5 +157,25 @@ mod tests {
          assert!(filter.weights.iter().all(|v| v.len() as i32 == kernal_size.1));
          assert!(filter.weights.iter().all(|v| v.iter().all(|c| *c <= 1.0 && *c > 0.0)));
     } 
+
+    
+    #[test]
+    fn test_apply_filter() {
+         let kernal_size = (3, 3);
+         let stride = (2, 2);
+         let padding = Padding::Ones; 
+         let filter = Filter::new(kernal_size, stride, padding); 
+         let dimensions = (50, 50);
+         let matrix: Vec<Vec<f32>> = (0..dimensions.0)
+            .map(|i| {
+                (0..dimensions.1)
+                    .map(|j| ((i + j) % 255 + 1) as f32)
+                    .collect()
+            })
+            .collect();
+        let output_matrix = filter.apply_filter(&matrix);
+        assert!(output_matrix.len() as i32 == matrix.len() as i32/stride.0);
+        assert!(output_matrix[0].len() as i32 == matrix[0].len() as i32/stride.1);
+    }
 }
 
